@@ -1,0 +1,15 @@
+============================= test session starts =============================
+platform win32 -- Python 3.10.10, pytest-8.4.2, pluggy-1.6.0
+rootdir: C:\AiSEO\AI-founding-engineer-assignment
+configfile: pytest.ini
+testpaths: tests
+plugins: anyio-4.11.0, asyncio-1.2.0
+asyncio: mode=auto, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 36 items
+
+tests\test_direct_answer.py .......                                      [ 19%]
+tests\test_fanout_parsing.py .............                               [ 55%]
+tests\test_htag_hierarchy.py ........                                    [ 77%]
+tests\test_readability.py ........                                       [100%]
+
+============================= 36 passed in 12.51s =============================
