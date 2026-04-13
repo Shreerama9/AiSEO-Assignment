@@ -60,12 +60,10 @@ export default function CheckCard({ check, index }: CheckCardProps) {
           </div>
         </div>
         {/* Pass/Fail icon */}
-        <div
-          className="shrink-0 mt-0.5 text-sm"
-          aria-label={passed ? "Passed" : "Failed"}
-        >
+        <div className="shrink-0 mt-0.5" aria-hidden="true">
           {passed ? (
-            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" role="img" aria-label="Passed">
+              <title>Passed</title>
               <circle cx="9" cy="9" r="9" fill="rgba(0,201,167,0.2)" />
               <path
                 d="M5 9l3 3 5-5"
@@ -76,7 +74,8 @@ export default function CheckCard({ check, index }: CheckCardProps) {
               />
             </svg>
           ) : (
-            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" role="img" aria-label="Failed">
+              <title>Failed</title>
               <circle cx="9" cy="9" r="9" fill="rgba(255,107,107,0.2)" />
               <path
                 d="M6 6l6 6M12 6l-6 6"

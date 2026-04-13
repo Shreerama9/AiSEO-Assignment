@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import asyncio
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 
+from app.limiter import limiter
 from app.models.schemas import AEORequest, AEOResponse
 from app.services.aeo_checks.direct_answer import DirectAnswerCheck
 from app.services.aeo_checks.htag_hierarchy import HTagHierarchyCheck
@@ -23,10 +24,11 @@ _SCORE_BANDS = [
 
 
 @router.post("/analyze", response_model=AEOResponse)
-async def analyze(request: AEORequest) -> AEOResponse:
+@limiter.limit("30/minute")
+async def analyze(request: Request, body: AEORequest) -> AEOResponse:
     # Analyzes content via a set of AEO checks and returns a raw score and band
     try:
-        html = await get_content(request.input_type, request.input_value)
+        html = await get_content(body.input_type, body.input_value)
     except Exception as exc:
         raise HTTPException(
             status_code=422,

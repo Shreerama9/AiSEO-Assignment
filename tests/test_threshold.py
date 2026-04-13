@@ -37,10 +37,13 @@ try:
 except ImportError:
     _DEPS_AVAILABLE = False
 
-pytestmark = pytest.mark.skipif(
-    not _DEPS_AVAILABLE,
-    reason="sentence-transformers / sklearn / numpy not installed",
-)
+pytestmark = [
+    pytest.mark.slow,  # exclude from fast CI runs with: pytest -m "not slow"
+    pytest.mark.skipif(
+        not _DEPS_AVAILABLE,
+        reason="sentence-transformers / sklearn / numpy not installed",
+    ),
+]
 
 # ---------------------------------------------------------------------------
 # Labeled dataset

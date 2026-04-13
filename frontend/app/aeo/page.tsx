@@ -7,6 +7,7 @@ import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Textarea from "@/components/ui/Textarea";
 import Card from "@/components/ui/Card";
+import CopyButton from "@/components/ui/CopyButton";
 import ScoreRing from "@/components/aeo/ScoreRing";
 import CheckCard from "@/components/aeo/CheckCard";
 
@@ -38,15 +39,14 @@ export default function AEOPage() {
         input_value: inputValue.trim(),
       });
       setResult(data);
-      // Give DOM time to paint before scrolling
       requestAnimationFrame(() => {
         resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
       });
     } catch (err) {
       if (err instanceof APIError) {
-        setError(`${err.message} (${err.code})`);
+        setError(err.friendly);
       } else {
-        setError("An unexpected error occurred. Is the backend running?");
+        setError("An unexpected error occurred.");
       }
     } finally {
       setLoading(false);
@@ -70,11 +70,15 @@ export default function AEOPage() {
 
       {/* Input card */}
       <Card className="p-6 space-y-5">
-        {/* Tab switcher */}
-        <div className="flex gap-1 p-1 rounded-xl bg-base w-fit">
+        {/* Tab switcher — ARIA tablist */}
+        <div role="tablist" aria-label="Input type" className="flex gap-1 p-1 rounded-xl bg-base w-fit">
           {(["url", "text"] as Tab[]).map((t) => (
             <button
               key={t}
+              role="tab"
+              aria-selected={tab === t}
+              aria-controls={`panel-${t}`}
+              id={`tab-${t}`}
               onClick={() => { setTab(t); setError(null); setResult(null); }}
               className={[
                 "px-4 py-1.5 rounded-lg text-sm font-semibold transition-all duration-150 cursor-pointer",
@@ -89,26 +93,32 @@ export default function AEOPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
-          {tab === "url" ? (
-            <Input
-              label="Article URL"
-              type="url"
-              placeholder="https://example.com/your-article"
-              value={urlValue}
-              onChange={(e) => setUrlValue(e.target.value)}
-              hint="Must be publicly accessible. Cached for 1 hour."
-              autoFocus
-            />
-          ) : (
-            <Textarea
-              label="Article Text (HTML or plain text)"
-              placeholder="Paste your article content here…"
-              rows={10}
-              value={textValue}
-              onChange={(e) => setTextValue(e.target.value)}
-              hint="Supports raw HTML — heading tags (H1–H3) are detected automatically."
-            />
-          )}
+          <div
+            role="tabpanel"
+            id={`panel-${tab}`}
+            aria-labelledby={`tab-${tab}`}
+          >
+            {tab === "url" ? (
+              <Input
+                label="Article URL"
+                type="url"
+                placeholder="https://example.com/your-article"
+                value={urlValue}
+                onChange={(e) => setUrlValue(e.target.value)}
+                hint="Must be publicly accessible. Cached for 1 hour."
+                autoFocus
+              />
+            ) : (
+              <Textarea
+                label="Article Text (HTML or plain text)"
+                placeholder="Paste your article content here…"
+                rows={10}
+                value={textValue}
+                onChange={(e) => setTextValue(e.target.value)}
+                hint="Supports raw HTML — heading tags (H1–H3) are detected automatically."
+              />
+            )}
+          </div>
 
           <Button
             type="submit"
@@ -124,7 +134,7 @@ export default function AEOPage() {
 
       {/* Error state */}
       {error && (
-        <div className="rounded-xl border border-danger/30 bg-danger/10 px-5 py-4 text-sm text-danger">
+        <div role="alert" className="rounded-xl border border-danger/30 bg-danger/10 px-5 py-4 text-sm text-danger">
           <strong>Error:</strong> {error}
         </div>
       )}
@@ -136,7 +146,13 @@ export default function AEOPage() {
           <Card className="p-8 flex flex-col sm:flex-row items-center gap-8">
             <ScoreRing score={result.aeo_score} band={result.band} />
             <div className="flex-1 space-y-3 text-center sm:text-left">
-              <h2 className="text-xl font-bold text-text-hi">Analysis Complete</h2>
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-xl font-bold text-text-hi">Analysis Complete</h2>
+                <CopyButton
+                  label="Copy JSON"
+                  getValue={() => JSON.stringify(result, null, 2)}
+                />
+              </div>
               <p className="text-text-mid text-sm leading-relaxed">
                 Your content scored{" "}
                 <strong className="text-text-hi">{result.aeo_score}/100</strong> for

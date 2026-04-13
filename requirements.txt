@@ -12,6 +12,7 @@ google-generativeai
 openai
 pydantic>=2.0
 python-dotenv
+slowapi
 pytest
 pytest-asyncio
 scikit-learn

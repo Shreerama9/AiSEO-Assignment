@@ -9,6 +9,7 @@ import Textarea from "@/components/ui/Textarea";
 import Card from "@/components/ui/Card";
 import SubQueryCard from "@/components/fanout/SubQueryCard";
 import GapSummaryPanel from "@/components/fanout/GapSummary";
+import CopyButton from "@/components/ui/CopyButton";
 
 type StreamStatus = "idle" | "streaming" | "done" | "error";
 
@@ -116,6 +117,8 @@ export default function FanoutPage() {
         setError(`${err.message} (${err.code})`);
       } else if (err instanceof DOMException && err.name === "AbortError") {
         // User stopped — status already set to done
+      } else if (err instanceof APIError) {
+        setError(err.friendly);
       } else {
         setError("Stream failed. Is the backend running and OPENAI_API_KEY set?");
       }
@@ -225,7 +228,7 @@ export default function FanoutPage() {
 
       {/* Error */}
       {error && (
-        <div className="rounded-xl border border-danger/30 bg-danger/10 px-5 py-4 text-sm text-danger">
+        <div role="alert" className="rounded-xl border border-danger/30 bg-danger/10 px-5 py-4 text-sm text-danger">
           <strong>Error:</strong> {error}
         </div>
       )}
@@ -237,7 +240,7 @@ export default function FanoutPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               {isStreaming && (
-                <div className="flex items-center gap-2 text-xs text-teal">
+                <div className="flex items-center gap-2 text-xs text-teal" role="status" aria-live="polite">
                   <span
                     className="w-2 h-2 rounded-full bg-teal sse-dot"
                     aria-hidden
@@ -251,11 +254,19 @@ export default function FanoutPage() {
                 </p>
               )}
             </div>
-            {meta && (
-              <p className="text-xs text-text-lo font-mono">
-                model: {meta.model_used}
-              </p>
-            )}
+            <div className="flex items-center gap-3">
+              {status === "done" && subQueries.length > 0 && (
+                <CopyButton
+                  label="Copy all queries"
+                  getValue={() => subQueries.map((sq, i) => `${i + 1}. [${sq.type}] ${sq.query}`).join("\n")}
+                />
+              )}
+              {meta && (
+                <p className="text-xs text-text-lo font-mono">
+                  model: {meta.model_used}
+                </p>
+              )}
+            </div>
           </div>
 
           <div className="grid sm:grid-cols-3 gap-5">

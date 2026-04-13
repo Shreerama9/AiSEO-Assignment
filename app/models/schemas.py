@@ -3,13 +3,18 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any, Literal, Union
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class AEORequest(BaseModel):
     # Request schema for AEO analysis
     input_type: Literal["url", "text"]
-    input_value: str
+    input_value: str = Field(..., min_length=1, max_length=50_000)
+
+    @field_validator("input_value")
+    @classmethod
+    def strip_input(cls, v: str) -> str:
+        return v.strip()
 
 
 class DirectAnswerDetails(BaseModel):
@@ -63,8 +68,13 @@ class SubQueryType(str, Enum):
 
 class FanoutRequest(BaseModel):
     # Request schema for query fan-out
-    target_query: str
-    existing_content: str | None = None
+    target_query: str = Field(..., min_length=1, max_length=500)
+    existing_content: str | None = Field(default=None, max_length=200_000)
+
+    @field_validator("target_query")
+    @classmethod
+    def strip_query(cls, v: str) -> str:
+        return v.strip()
 
 
 class SubQuery(BaseModel):

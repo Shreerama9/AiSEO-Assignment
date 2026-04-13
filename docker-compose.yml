@@ -2,7 +2,9 @@ version: "3.9"
 
 services:
   aegis:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     image: aegis-api:latest
     container_name: aegis-api
     ports:
@@ -18,3 +20,19 @@ services:
       timeout: 5s
       retries: 3
       start_period: 60s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: aegis-frontend:latest
+    container_name: aegis-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - API_URL=http://aegis-api:8000
+    depends_on:
+      aegis:
+        condition: service_healthy
+    restart: unless-stopped
