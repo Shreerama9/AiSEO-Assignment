@@ -1,15 +1,35 @@
 __pycache__/
 *.py[cod]
 *$py.class
+
+# Environment
 .env
 .venv
 env/
 venv/
 ENV/
+
+# Test artefacts
 .pytest_cache/
 .coverage
 htmlcov/
+pytest.log
+pytest_new.log
+test_results.txt
+
+# Jupyter
 .ipynb_checkpoints
+
+# Editor
 *.swp
 *.swo
 .DS_Store
+.idea/
+.vscode/
+
+# Frontend build artefacts (belt-and-suspenders — also in frontend/.gitignore)
+frontend/.next/
+frontend/out/
+frontend/node_modules/
+frontend/tsconfig.tsbuildinfo
+frontend/next-env.d.ts

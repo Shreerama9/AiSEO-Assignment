@@ -1,0 +1,103 @@
+@import "tailwindcss";
+
+@theme {
+  /* AEGIS Brand Palette */
+  --color-purple:       #845EC2;
+  --color-purple-light: #B39CD0;
+  --color-purple-pale:  #FBEAFF;
+  --color-teal:         #00C9A7;
+  --color-teal-dim:     #00A88C;
+
+  /* Dark surface scale — plum-black, NOT blue */
+  --color-base:         #0D0717;
+  --color-surface:      #160D24;
+  --color-elevated:     #1E1233;
+  --color-border:       #2D1F47;
+  --color-border-hi:    #3D2A60;
+
+  /* Text scale */
+  --color-text-hi:      #F5EEFF;
+  --color-text-mid:     #C8B8E8;
+  --color-text-lo:      #7A6A9A;
+
+  /* Status */
+  --color-success:      #00C9A7;
+  --color-warn:         #FFB347;
+  --color-danger:       #FF6B6B;
+
+  /* Fonts */
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+}
+
+/* Base */
+*, *::before, *::after { box-sizing: border-box; }
+
+html { height: 100%; scroll-behavior: smooth; }
+
+body {
+  min-height: 100%;
+  background-color: var(--color-base);
+  color: var(--color-text-hi);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--color-surface); }
+::-webkit-scrollbar-thumb { background: var(--color-border-hi); border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-purple-light); }
+
+/* Selection */
+::selection { background: var(--color-purple); color: #fff; }
+
+/* Focus ring */
+:focus-visible {
+  outline: 2px solid var(--color-purple);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Score ring animation */
+@keyframes ring-fill {
+  from { stroke-dashoffset: 283; }
+  to   { stroke-dashoffset: var(--target-offset); }
+}
+
+.score-ring-circle {
+  animation: ring-fill 1.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  transform-origin: center;
+  transform: rotate(-90deg);
+}
+
+/* SSE pulse */
+@keyframes sse-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.4; transform: scale(0.85); }
+}
+.sse-dot { animation: sse-pulse 1.4s ease-in-out infinite; }
+
+/* Fade-in for streamed cards */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-up { animation: fade-up 0.25s ease-out both; }
+
+/* Shimmer skeleton */
+@keyframes shimmer {
+  from { background-position: -400px 0; }
+  to   { background-position: 400px 0; }
+}
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--color-surface) 25%,
+    var(--color-elevated) 50%,
+    var(--color-surface) 75%
+  );
+  background-size: 800px 100%;
+  animation: shimmer 1.6s infinite linear;
+}
