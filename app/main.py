@@ -3,11 +3,12 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import uuid
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.middleware.gzip import GZipMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
@@ -19,15 +20,13 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Manages startup (env loading, model warmup) and teardown
     load_dotenv(override=False)
 
     if not os.environ.get("OPENAI_API_KEY"):
-        logger.warning("OPENAI_API_KEY not set. Fan-out will be disabled.")
+        logger.warning("OPENAI_API_KEY not set. Fan-out endpoints will return 503.")
 
     loop = asyncio.get_event_loop()
 
-    # Warm up spaCy
     try:
         from app.services.aeo_checks.direct_answer import _get_nlp
         await loop.run_in_executor(None, _get_nlp)
@@ -35,7 +34,6 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         logger.warning("spaCy warmup failed: %s", exc)
 
-    # Warm up sentence-transformers unconditionally
     try:
         from app.services.gap_analyzer import _get_model
         await loop.run_in_executor(None, _get_model)
@@ -53,8 +51,24 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# ── Middleware ──────────────────────────────────────────────────────────────
+
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+@app.middleware("http")
+async def add_request_id(request: Request, call_next):
+    """Attach a unique X-Request-ID to every response for log correlation."""
+    request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
+    response = await call_next(request)
+    response.headers["X-Request-ID"] = request_id
+    return response
+
+# ── Rate limiting ───────────────────────────────────────────────────────────
+
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# ── Routers ─────────────────────────────────────────────────────────────────
 
 app.include_router(aeo.router, prefix="/api/aeo", tags=["aeo"])
 app.include_router(fanout.router, prefix="/api/fanout", tags=["fanout"])

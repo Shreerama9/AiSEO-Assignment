@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import type { AEOResponse, InputType } from "@/lib/types";
 import { analyzeAEO, APIError } from "@/lib/api";
+import { useKeyboardSubmit } from "@/lib/useKeyboardSubmit";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Textarea from "@/components/ui/Textarea";
@@ -25,14 +26,11 @@ export default function AEOPage() {
   const inputValue = tab === "url" ? urlValue : textValue;
   const canSubmit = inputValue.trim().length > 0;
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  const runAnalysis = useCallback(async () => {
     if (!canSubmit || loading) return;
-
     setLoading(true);
     setError(null);
     setResult(null);
-
     try {
       const data = await analyzeAEO({
         input_type: tab as InputType,
@@ -43,14 +41,17 @@ export default function AEOPage() {
         resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
       });
     } catch (err) {
-      if (err instanceof APIError) {
-        setError(err.friendly);
-      } else {
-        setError("An unexpected error occurred.");
-      }
+      setError(err instanceof APIError ? err.friendly : "An unexpected error occurred.");
     } finally {
       setLoading(false);
     }
+  }, [canSubmit, loading, tab, inputValue]);
+
+  useKeyboardSubmit(runAnalysis, canSubmit && !loading);
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    runAnalysis();
   }
 
   return (
@@ -120,15 +121,20 @@ export default function AEOPage() {
             )}
           </div>
 
-          <Button
-            type="submit"
-            loading={loading}
-            disabled={!canSubmit}
-            size="md"
-            className="w-full"
-          >
-            {loading ? "Analyzing…" : "Analyze Content"}
-          </Button>
+          <div className="flex items-center gap-3">
+            <Button
+              type="submit"
+              loading={loading}
+              disabled={!canSubmit}
+              size="md"
+              className="flex-1"
+            >
+              {loading ? "Analyzing…" : "Analyze Content"}
+            </Button>
+            <kbd className="hidden sm:inline-flex items-center gap-1 px-2 py-1 rounded-md border border-border bg-elevated text-[10px] text-text-lo font-mono shrink-0">
+              ⌘ Enter
+            </kbd>
+          </div>
         </form>
       </Card>
 

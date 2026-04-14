@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -13,11 +14,23 @@ from app.services.gap_analyzer import analyze_gaps
 
 router = APIRouter()
 
+_NO_KEY_DETAIL = {
+    "error": "llm_unavailable",
+    "message": "OPENAI_API_KEY is not configured on this server.",
+    "detail": "Set OPENAI_API_KEY in the server environment and restart.",
+}
+
+
+def _require_api_key() -> None:
+    """Raise 503 immediately if the API key is absent — avoids a round-trip to OpenAI."""
+    if not os.environ.get("OPENAI_API_KEY"):
+        raise HTTPException(status_code=503, detail=_NO_KEY_DETAIL)
+
 
 @router.post("/generate", response_model=FanoutResponse)
 @limiter.limit("10/minute")
 async def generate(request: Request, body: FanoutRequest) -> FanoutResponse:
-    # Generates a full JSON response of sub-queries with coverage analysis
+    _require_api_key()
     try:
         sub_queries, model_used = await call_llm_with_retry(body.target_query)
     except LLMUnavailableError as exc:
@@ -48,7 +61,8 @@ async def generate(request: Request, body: FanoutRequest) -> FanoutResponse:
 @router.post("/stream")
 @limiter.limit("10/minute")
 async def stream(request: Request, body: FanoutRequest) -> StreamingResponse:
-    # Streams sub-queries as Server-Sent Events to reduce time-to-first-byte
+    _require_api_key()
+
     async def _generate():
         try:
             sub_queries, model_used = await call_llm_with_retry(body.target_query)
@@ -65,6 +79,8 @@ async def stream(request: Request, body: FanoutRequest) -> StreamingResponse:
         yield f"data: {json.dumps({'target_query': body.target_query, 'model_used': model_used})}\n\n"
 
         for sq in sub_queries:
+            if await request.is_disconnected():
+                return
             yield f"data: {json.dumps(sq.model_dump())}\n\n"
             await asyncio.sleep(0)
 

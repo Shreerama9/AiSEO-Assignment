@@ -1,25 +1,28 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
-import type { SubQuery, GapSummary, StreamMeta } from "@/lib/types";
+import type { SubQuery, SubQueryType, GapSummary, StreamMeta } from "@/lib/types";
 import { streamFanout, APIError } from "@/lib/api";
+import { useKeyboardSubmit } from "@/lib/useKeyboardSubmit";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Textarea from "@/components/ui/Textarea";
 import Card from "@/components/ui/Card";
 import SubQueryCard from "@/components/fanout/SubQueryCard";
 import GapSummaryPanel from "@/components/fanout/GapSummary";
+import SkeletonCards from "@/components/fanout/SkeletonCards";
+import IntentBreakdown from "@/components/fanout/IntentBreakdown";
 import CopyButton from "@/components/ui/CopyButton";
 
 type StreamStatus = "idle" | "streaming" | "done" | "error";
 
-const INTENT_DESCRIPTIONS: Record<string, string> = {
-  comparative:      "How X compares to alternatives",
-  feature_specific: "Deep dives on individual capabilities",
-  use_case:         "Real-world applications",
-  trust_signals:    "Reviews, case studies, credibility",
-  how_to:           "Step-by-step instructional queries",
-  definitional:     "What-is / concept clarity queries",
+const INTENT_META: Record<string, { label: string; desc: string; icon: string }> = {
+  comparative:      { label: "Comparative",      desc: "How X compares to alternatives",          icon: "⚖️" },
+  feature_specific: { label: "Feature Specific", desc: "Deep dives on individual capabilities",   icon: "🔧" },
+  use_case:         { label: "Use Case",         desc: "Real-world applications",                 icon: "💡" },
+  trust_signals:    { label: "Trust Signals",    desc: "Reviews, case studies, credibility",      icon: "🛡️" },
+  how_to:           { label: "How To",           desc: "Step-by-step instructional queries",      icon: "📖" },
+  definitional:     { label: "Definitional",     desc: "What-is / concept clarity queries",       icon: "📚" },
 };
 
 export default function FanoutPage() {
@@ -31,26 +34,49 @@ export default function FanoutPage() {
   const [subQueries, setSubQueries] = useState<SubQuery[]>([]);
   const [gapSummary, setGapSummary] = useState<GapSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [activeFilter, setActiveFilter] = useState<SubQueryType | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
 
   const canSubmit = query.trim().length > 0;
+  const isStreaming = status === "streaming";
+
+  useKeyboardSubmit(
+    useCallback(() => formRef.current?.requestSubmit(), []),
+    canSubmit && !isStreaming,
+  );
+  const hasSomeResults = subQueries.length > 0;
+
+  // Count per intent type for badge display
+  const typeCounts = subQueries.reduce<Record<string, number>>((acc, sq) => {
+    acc[sq.type] = (acc[sq.type] ?? 0) + 1;
+    return acc;
+  }, {});
+
+  const visibleQueries = activeFilter
+    ? subQueries.filter((sq) => sq.type === activeFilter)
+    : subQueries;
 
   const handleStop = useCallback(() => {
     abortRef.current?.abort();
     setStatus("done");
   }, []);
 
+  function toggleFilter(type: SubQueryType) {
+    setActiveFilter((prev) => (prev === type ? null : type));
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!canSubmit || status === "streaming") return;
+    if (!canSubmit || isStreaming) return;
 
-    // Reset state
     setStatus("streaming");
     setError(null);
     setMeta(null);
     setSubQueries([]);
     setGapSummary(null);
+    setActiveFilter(null);
 
     const controller = new AbortController();
     abortRef.current = controller;
@@ -63,7 +89,6 @@ export default function FanoutPage() {
           : undefined,
       });
 
-      // Scroll to results area
       requestAnimationFrame(() => {
         resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
       });
@@ -83,24 +108,16 @@ export default function FanoutPage() {
         for (const line of lines) {
           if (!line.startsWith("data: ")) continue;
           const raw = line.slice(6).trim();
-          if (raw === "[DONE]") {
-            setStatus("done");
-            return;
-          }
+          if (raw === "[DONE]") { setStatus("done"); return; }
 
           let parsed: Record<string, unknown>;
-          try {
-            parsed = JSON.parse(raw);
-          } catch {
-            continue;
-          }
+          try { parsed = JSON.parse(raw); } catch { continue; }
 
           if ("error" in parsed) {
             setError(String(parsed.detail ?? parsed.error));
             setStatus("error");
             return;
           }
-
           if ("target_query" in parsed && "model_used" in parsed) {
             setMeta(parsed as unknown as StreamMeta);
           } else if ("gap_summary" in parsed && parsed.gap_summary) {
@@ -113,24 +130,20 @@ export default function FanoutPage() {
 
       setStatus("done");
     } catch (err) {
-      if (err instanceof APIError) {
-        setError(`${err.message} (${err.code})`);
-      } else if (err instanceof DOMException && err.name === "AbortError") {
+      if (err instanceof DOMException && err.name === "AbortError") {
         // User stopped — status already set to done
       } else if (err instanceof APIError) {
         setError(err.friendly);
+        setStatus("error");
       } else {
         setError("Stream failed. Is the backend running and OPENAI_API_KEY set?");
+        setStatus("error");
       }
-      setStatus("error");
     }
   }
 
-  const isStreaming = status === "streaming";
-  const hasSomeResults = subQueries.length > 0;
-
   return (
-    <div className="mx-auto max-w-3xl px-6 py-12 space-y-10">
+    <div className="mx-auto max-w-3xl px-6 py-12 space-y-8">
       {/* Page header */}
       <header className="space-y-2">
         <div className="flex items-center gap-2.5">
@@ -144,21 +157,84 @@ export default function FanoutPage() {
         </p>
       </header>
 
-      {/* Intent legend */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-        {Object.entries(INTENT_DESCRIPTIONS).map(([type, desc]) => (
-          <div key={type} className="rounded-xl bg-surface border border-border p-3 space-y-0.5">
-            <p className="text-xs font-semibold text-purple-light capitalize">
-              {type.replace("_", " ")}
-            </p>
-            <p className="text-[11px] text-text-lo leading-tight">{desc}</p>
-          </div>
-        ))}
+      {/* Intent filter chips */}
+      <div
+        role="group"
+        aria-label="Filter by intent type"
+        className="grid grid-cols-2 sm:grid-cols-3 gap-2"
+      >
+        {Object.entries(INTENT_META).map(([type, meta]) => {
+          const count = typeCounts[type] ?? 0;
+          const isActive = activeFilter === type;
+          const isFilterable = hasSomeResults;
+
+          return (
+            <button
+              key={type}
+              type="button"
+              role={isFilterable ? "checkbox" : undefined}
+              aria-checked={isFilterable ? isActive : undefined}
+              disabled={isFilterable && count === 0}
+              onClick={() => isFilterable && toggleFilter(type as SubQueryType)}
+              className={[
+                "relative text-left rounded-xl p-3 space-y-0.5 border transition-all duration-150",
+                isFilterable
+                  ? "cursor-pointer"
+                  : "cursor-default",
+                isActive
+                  ? "bg-[rgba(132,94,194,0.15)] border-purple shadow-[0_0_12px_rgba(132,94,194,0.2)]"
+                  : isFilterable && count > 0
+                  ? "bg-surface border-border hover:border-border-hi hover:bg-elevated"
+                  : "bg-surface border-border opacity-40",
+              ].join(" ")}
+            >
+              {/* Count badge — shown once results exist */}
+              {isFilterable && count > 0 && (
+                <span
+                  className={[
+                    "absolute top-2.5 right-2.5 text-[10px] font-bold tabular-nums px-1.5 py-0.5 rounded-md",
+                    isActive
+                      ? "bg-purple text-white"
+                      : "bg-elevated text-text-lo border border-border",
+                  ].join(" ")}
+                >
+                  {count}
+                </span>
+              )}
+              <p className={[
+                "text-xs font-semibold capitalize flex items-center gap-1.5",
+                isActive ? "text-purple-light" : "text-purple-light",
+              ].join(" ")}>
+                <span aria-hidden>{meta.icon}</span>
+                {meta.label}
+              </p>
+              <p className="text-[11px] text-text-lo leading-tight pr-6">{meta.desc}</p>
+            </button>
+          );
+        })}
       </div>
+
+      {/* Active filter indicator */}
+      {activeFilter && (
+        <div className="flex items-center gap-2 text-xs">
+          <span className="text-text-lo">Showing:</span>
+          <span className="px-2 py-0.5 rounded-md bg-[rgba(132,94,194,0.2)] text-purple-light border border-[rgba(132,94,194,0.3)] font-semibold capitalize">
+            {INTENT_META[activeFilter]?.label}
+          </span>
+          <span className="text-text-lo">({visibleQueries.length} of {subQueries.length})</span>
+          <button
+            type="button"
+            onClick={() => setActiveFilter(null)}
+            className="ml-1 text-text-lo hover:text-text-mid underline underline-offset-2 cursor-pointer"
+          >
+            Clear
+          </button>
+        </div>
+      )}
 
       {/* Input card */}
       <Card className="p-6 space-y-5">
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form ref={formRef} onSubmit={handleSubmit} className="space-y-5">
           <Input
             label="Target Query / Topic"
             placeholder="e.g. best project management software for remote teams"
@@ -212,13 +288,13 @@ export default function FanoutPage() {
             >
               {isStreaming ? "Streaming…" : "Generate Sub-Queries"}
             </Button>
+            {!isStreaming && (
+              <kbd className="hidden sm:inline-flex items-center gap-1 px-2 py-1 rounded-md border border-border bg-elevated text-[10px] text-text-lo font-mono shrink-0">
+                ⌘ Enter
+              </kbd>
+            )}
             {isStreaming && (
-              <Button
-                type="button"
-                variant="secondary"
-                size="md"
-                onClick={handleStop}
-              >
+              <Button type="button" variant="secondary" size="md" onClick={handleStop}>
                 Stop
               </Button>
             )}
@@ -241,10 +317,7 @@ export default function FanoutPage() {
             <div className="flex items-center gap-3">
               {isStreaming && (
                 <div className="flex items-center gap-2 text-xs text-teal" role="status" aria-live="polite">
-                  <span
-                    className="w-2 h-2 rounded-full bg-teal sse-dot"
-                    aria-hidden
-                  />
+                  <span className="w-2 h-2 rounded-full bg-teal sse-dot" aria-hidden />
                   Live streaming
                 </div>
               )}
@@ -258,13 +331,15 @@ export default function FanoutPage() {
               {status === "done" && subQueries.length > 0 && (
                 <CopyButton
                   label="Copy all queries"
-                  getValue={() => subQueries.map((sq, i) => `${i + 1}. [${sq.type}] ${sq.query}`).join("\n")}
+                  getValue={() =>
+                    visibleQueries
+                      .map((sq, i) => `${i + 1}. [${sq.type}] ${sq.query}`)
+                      .join("\n")
+                  }
                 />
               )}
               {meta && (
-                <p className="text-xs text-text-lo font-mono">
-                  model: {meta.model_used}
-                </p>
+                <p className="text-xs text-text-lo font-mono">model: {meta.model_used}</p>
               )}
             </div>
           </div>
@@ -272,15 +347,22 @@ export default function FanoutPage() {
           <div className="grid sm:grid-cols-3 gap-5">
             {/* Sub-query list */}
             <div className="sm:col-span-2 space-y-2">
-              {subQueries.length === 0 && isStreaming && (
-                <SkeletonCards />
+              {visibleQueries.length === 0 && isStreaming && <SkeletonCards />}
+              {visibleQueries.length === 0 && !isStreaming && activeFilter && (
+                <p className="text-sm text-text-lo text-center py-8">
+                  No {INTENT_META[activeFilter]?.label} queries generated.
+                </p>
               )}
-              {subQueries.map((sq, i) => (
-                <SubQueryCard key={i} item={sq} index={i} />
+              {visibleQueries.map((sq, i) => (
+                <SubQueryCard
+                  key={`${sq.type}-${sq.query.slice(0, 40)}`}
+                  item={sq}
+                  index={i}
+                />
               ))}
             </div>
 
-            {/* Gap summary sidebar */}
+            {/* Sidebar */}
             <div className="space-y-4">
               {gapSummary ? (
                 <GapSummaryPanel summary={gapSummary} />
@@ -296,9 +378,12 @@ export default function FanoutPage() {
                 </Card>
               ) : null}
 
-              {/* Stats card (shown once done) */}
               {status === "done" && subQueries.length > 0 && (
-                <IntentBreakdown subQueries={subQueries} />
+                <IntentBreakdown
+                  subQueries={subQueries}
+                  activeFilter={activeFilter}
+                  onFilterClick={(t) => toggleFilter(t)}
+                />
               )}
             </div>
           </div>
@@ -308,50 +393,3 @@ export default function FanoutPage() {
   );
 }
 
-function SkeletonCards() {
-  return (
-    <>
-      {[...Array(4)].map((_, i) => (
-        <div
-          key={i}
-          className="h-16 rounded-xl skeleton"
-          style={{ animationDelay: `${i * 0.1}s` }}
-        />
-      ))}
-    </>
-  );
-}
-
-function IntentBreakdown({ subQueries }: { subQueries: SubQuery[] }) {
-  const counts: Record<string, number> = {};
-  for (const sq of subQueries) {
-    counts[sq.type] = (counts[sq.type] ?? 0) + 1;
-  }
-  const total = subQueries.length;
-
-  return (
-    <Card className="p-5 space-y-3">
-      <p className="text-xs font-semibold text-text-lo uppercase tracking-wider">
-        Intent Breakdown
-      </p>
-      <div className="space-y-2">
-        {Object.entries(counts)
-          .sort(([, a], [, b]) => b - a)
-          .map(([type, count]) => (
-            <div key={type} className="space-y-1">
-              <div className="flex justify-between text-xs">
-                <span className="text-text-mid capitalize">{type.replace("_", " ")}</span>
-                <span className="text-text-lo tabular-nums">{count}/{total}</span>
-              </div>
-              <div className="h-1 rounded-full bg-border overflow-hidden">
-                <div
-                  className="h-full rounded-full bg-purple transition-all duration-500"
-                  style={{ width: `${(count / total) * 100}%` }}
-                />
-              </div>
-            </div>
-          ))}
-      </div>
-    </Card>
-  );
-}
