@@ -14,7 +14,10 @@ class AEORequest(BaseModel):
     @field_validator("input_value")
     @classmethod
     def strip_input(cls, v: str) -> str:
-        return v.strip()
+        stripped = v.strip()
+        if not stripped:
+            raise ValueError("input_value must not be blank")
+        return stripped
 
 
 class DirectAnswerDetails(BaseModel):

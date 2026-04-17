@@ -59,7 +59,7 @@ async def call_llm_with_retry(target_query: str, max_retries: int = 3) -> tuple[
             return sub_queries, _MODEL
 
         except (json.JSONDecodeError, ValueError, pydantic.ValidationError) as exc:
-            last_error = f"Parsing error on attempt {attempt + 1}: {exc}"
+            last_error = f"Parsing error on attempt {attempt + 1}: {type(exc).__name__}: {exc}"
         except Exception as exc:
             last_error = f"API error on attempt {attempt + 1}: {exc}"
 
@@ -74,7 +74,7 @@ def _parse_and_validate(raw_text: str) -> list[SubQuery]:
 
     data = json.loads(text)
     if "sub_queries" not in data:
-        raise ValueError("Missing 'sub_queries' key.")
+        raise ValueError("missing required 'sub_queries' key")
 
     raw_queries = data["sub_queries"]
     if not isinstance(raw_queries, list):
@@ -95,6 +95,6 @@ def _parse_and_validate(raw_text: str) -> list[SubQuery]:
 
     insufficient = [t for t, count in type_counts.items() if count < MIN_PER_TYPE]
     if insufficient:
-        raise ValueError(f"Need at least {MIN_PER_TYPE} per type.")
+        raise ValueError(f"Insufficient type coverage: need at least {MIN_PER_TYPE} per type.")
 
     return validated

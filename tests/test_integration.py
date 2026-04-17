@@ -115,7 +115,8 @@ async def test_cache_clear_all(client: AsyncClient) -> None:
 
 
 async def test_cache_clear_specific_url(client: AsyncClient) -> None:
-    resp = await client.delete(
+    resp = await client.request(
+        "DELETE",
         "/api/cache",
         json={"url": "https://example.com/article"},
     )
